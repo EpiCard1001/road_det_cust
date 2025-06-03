@@ -16,7 +16,18 @@ from networks.dunet import Dunet
 from networks.dinknet import LinkNet34, DinkNet34, DinkNet50, DinkNet101, DinkNet34_less_pool
 
 BATCHSIZE_PER_CARD = 4
-
+def pad_to_square_32(img):
+        h, w, c = img.shape
+        size = max(h, w)
+        pad_size = ((size + 31) // 32) * 32  # smallest multiple of 32 >= size
+    
+        top = (pad_size - h) // 2
+        bottom = pad_size - h - top
+        left = (pad_size - w) // 2
+        right = pad_size - w - left
+    
+        padded = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=0)
+        return padded
 class TTAFrame():
     def __init__(self, net):
         self.net = net().cuda()
@@ -32,18 +43,7 @@ class TTAFrame():
             return self.test_one_img_from_path_2(path)
         elif batchsize >= 2:
             return self.test_one_img_from_path_4(path)
-    def pad_to_square_32(img):
-        h, w, c = img.shape
-        size = max(h, w)
-        pad_size = ((size + 31) // 32) * 32  # smallest multiple of 32 >= size
-    
-        top = (pad_size - h) // 2
-        bottom = pad_size - h - top
-        left = (pad_size - w) // 2
-        right = pad_size - w - left
-    
-        padded = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=0)
-        return padded
+
 
     def test_one_img_from_path_8(self, path):
         img = cv2.imread(path)#.transpose(2,0,1)[None]
