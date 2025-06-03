@@ -32,9 +32,22 @@ class TTAFrame():
             return self.test_one_img_from_path_2(path)
         elif batchsize >= 2:
             return self.test_one_img_from_path_4(path)
+    def pad_to_square_32(img):
+        h, w, c = img.shape
+        size = max(h, w)
+        pad_size = ((size + 31) // 32) * 32  # smallest multiple of 32 >= size
+    
+        top = (pad_size - h) // 2
+        bottom = pad_size - h - top
+        left = (pad_size - w) // 2
+        right = pad_size - w - left
+    
+        padded = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=0)
+        return padded
 
     def test_one_img_from_path_8(self, path):
         img = cv2.imread(path)#.transpose(2,0,1)[None]
+        img = pad_to_square_32(img)
         img90 = np.array(np.rot90(img))
         img1 = np.concatenate([img[None],img90[None]])
         img2 = np.array(img1)[:,::-1]
@@ -63,6 +76,7 @@ class TTAFrame():
 
     def test_one_img_from_path_4(self, path):
         img = cv2.imread(path)#.transpose(2,0,1)[None]
+        img = pad_to_square_32(img)
         img90 = np.array(np.rot90(img))
         img1 = np.concatenate([img[None],img90[None]])
         img2 = np.array(img1)[:,::-1]
@@ -91,6 +105,7 @@ class TTAFrame():
     
     def test_one_img_from_path_2(self, path):
         img = cv2.imread(path)#.transpose(2,0,1)[None]
+        img = pad_to_square_32(img)
         img90 = np.array(np.rot90(img))
         img1 = np.concatenate([img[None],img90[None]])
         img2 = np.array(img1)[:,::-1]
@@ -114,7 +129,7 @@ class TTAFrame():
     
     def test_one_img_from_path_1(self, path):
         img = cv2.imread(path)#.transpose(2,0,1)[None]
-        
+        img = pad_to_square_32(img)
         img90 = np.array(np.rot90(img))
         img1 = np.concatenate([img[None],img90[None]])
         img2 = np.array(img1)[:,::-1]
@@ -135,18 +150,57 @@ class TTAFrame():
         self.net.load_state_dict(torch.load(path))
         
 #source = 'dataset/test/'
-source = 'dataset/valid/'
-val = os.listdir(source)
-solver = TTAFrame(DinkNet34)
-solver.load('weights/log01_dink34.th')
-tic = time()
-target = 'submits/log01_dink34/'
-os.mkdir(target)
-for i,name in enumerate(val):
-    if i%10 == 0:
-        print i/10, '    ','%.2f'%(time()-tic)
-    mask = solver.test_one_img_from_path(source+name)
-    mask[mask>4.0] = 255
-    mask[mask<=4.0] = 0
-    mask = np.concatenate([mask[:,:,None],mask[:,:,None],mask[:,:,None]],axis=2)
-    cv2.imwrite(target+name[:-7]+'mask.png',mask.astype(np.uint8))
+# source = 'dataset/valid/'
+# val = os.listdir(source)
+# solver = TTAFrame(DinkNet34)
+# solver.load('weights/log01_dink34.th')
+# tic = time()
+# target = 'submits/log01_dink34/'
+# os.mkdir(target)
+# for i,name in enumerate(val):
+#     if i%10 == 0:
+#         print i/10, '    ','%.2f'%(time()-tic)
+#     mask = solver.test_one_img_from_path(source+name)
+#     mask[mask>4.0] = 255
+#     mask[mask<=4.0] = 0
+#     mask = np.concatenate([mask[:,:,None],mask[:,:,None],mask[:,:,None]],axis=2)
+#     cv2.imwrite(target+name[:-7]+'mask.png',mask.astype(np.uint8))
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run DinkNet34 segmentation model on an input image.")
+    parser.add_argument('--img_path', type=str, default=None, help='Path to a single image')
+    parser.add_argument('--ckpt', type=str, default='/content/log01_dink34.th', help='Path to model checkpoint')
+    parser.add_argument('--out_dir', type=str, default='submits/log01_dink34/', help='Directory to save mask')
+    args = parser.parse_args()
+
+    solver = TTAFrame(DinkNet34)
+    solver.load(args.ckpt)
+
+    os.makedirs(args.out_dir, exist_ok=True)
+
+    if args.img_path:
+        name = os.path.basename(args.img_path)
+        mask = solver.test_one_img_from_path(args.img_path)
+        mask[mask > 4.0] = 255
+        mask[mask <= 4.0] = 0
+        mask = np.concatenate([mask[:, :, None]] * 3, axis=2)
+        out_path = os.path.join(args.out_dir, name[:-7] + 'mask.png')
+        cv2.imwrite(out_path, mask.astype(np.uint8))
+        print(out_path)
+    else:
+        # default batch mode
+        source = 'dataset/valid/'
+        val = os.listdir(source)
+        tic = time()
+        for i, name in enumerate(val):
+            if i % 10 == 0:
+                print(i / 10, '    ', '%.2f' % (time() - tic))
+            tp = os.path.join(source, name)
+            if tp.endswith((".png", ".jpg", ".tiff", ".tif")):
+                mask = solver.test_one_img_from_path(tp)
+                mask[mask > 4.0] = 255
+                mask[mask <= 4.0] = 0
+                mask = np.concatenate([mask[:, :, None]] * 3, axis=2)
+                cv2.imwrite(os.path.join(args.out_dir, name[:-7] + 'mask.png'), mask.astype(np.uint8))
+
