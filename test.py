@@ -213,7 +213,7 @@ if __name__ == "__main__":
         mask[mask > 4.0] = 255
         mask[mask <= 4.0] = 0
         mask = np.concatenate([mask[:, :, None]] * 3, axis=2)
-        out_path = os.path.join('mask.png')
+        out_path = os.path.join(args.out_dir, 'mask.png')
         cv2.imwrite(out_path, mask.astype(np.uint8))
         print(f"Mask saved to: {out_path}")
         print(f"Mask shape: {mask.shape}")
